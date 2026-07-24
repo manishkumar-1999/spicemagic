@@ -625,6 +625,56 @@ def get_theme_css(theme='Light'):
                 background: linear-gradient(180deg, #2E75B6 0%, #1F4E79 100%);
                 opacity: 0.5;
             }
+            /* Force dark text in sidebar for light mode — protects against
+               mobile OS dark mode overriding text colors */
+            [data-testid="stSidebar"] h1,
+            [data-testid="stSidebar"] h2,
+            [data-testid="stSidebar"] h3,
+            [data-testid="stSidebar"] h4,
+            [data-testid="stSidebar"] h5,
+            [data-testid="stSidebar"] h6 {
+                color: #1E293B !important;
+            }
+            [data-testid="stSidebar"] p,
+            [data-testid="stSidebar"] label,
+            [data-testid="stSidebar"] span,
+            [data-testid="stSidebar"] div[data-testid="stMarkdownContainer"],
+            [data-testid="stSidebar"] div[data-testid="stMarkdownContainer"] *,
+            [data-testid="stSidebar"] .stRadio label,
+            [data-testid="stSidebar"] .stRadio div[role="radiogroup"] label,
+            [data-testid="stSidebar"] .stRadio div[role="radiogroup"] label p,
+            [data-testid="stSidebar"] .stRadio div[role="radiogroup"] label span {
+                color: #1E293B !important;
+            }
+            [data-testid="stSidebar"] [data-testid="stMetricLabel"] {
+                color: #475569 !important;
+            }
+            [data-testid="stSidebar"] [data-testid="stMetricValue"] {
+                color: #1F4E79 !important;
+            }
+            /* Force main content background/text in light mode too */
+            .stApp,
+            [data-testid="stAppViewContainer"],
+            [data-testid="stMain"] {
+                background-color: #FFFFFF !important;
+                color: #1E293B !important;
+            }
+            .stApp h1, .stApp h2, .stApp h3, .stApp h4, .stApp h5, .stApp h6,
+            [data-testid="stMarkdownContainer"] h1,
+            [data-testid="stMarkdownContainer"] h2,
+            [data-testid="stMarkdownContainer"] h3,
+            [data-testid="stMarkdownContainer"] h4,
+            [data-testid="stMarkdownContainer"] h5,
+            [data-testid="stMarkdownContainer"] h6 {
+                color: #1E293B !important;
+            }
+            [data-testid="stMarkdownContainer"],
+            [data-testid="stMarkdownContainer"] p,
+            [data-testid="stMarkdownContainer"] li,
+            [data-testid="stMarkdownContainer"] span,
+            .stMarkdown p, .stMarkdown li {
+                color: #334155 !important;
+            }
             #MainMenu {visibility: hidden;}
             footer {visibility: hidden;}
             /* Hide only specific header items — keep sidebar toggle visible */
@@ -652,6 +702,12 @@ def load_database():
             df['label'] = df['Association Nature'].astype(str).str.strip().str.lower()
             df['Spice'] = df['Spice'].astype(str).str.strip()
             df['Disease'] = df['Disease'].astype(str).str.strip()
+            # Drop rows where Spice/Disease became empty string or the literal 'nan'
+            # after conversion — protects downstream sorted() and .lower() calls
+            df = df[
+                df['Spice'].notna() & (df['Spice'] != '') & (df['Spice'].str.lower() != 'nan') &
+                df['Disease'].notna() & (df['Disease'] != '') & (df['Disease'].str.lower() != 'nan')
+            ].reset_index(drop=True)
             if 'Publication Date' in df.columns:
                 df['Year'] = pd.to_datetime(df['Publication Date'], errors='coerce').dt.year
             return df
@@ -1129,7 +1185,7 @@ if page == "🧠 Live Prediction":
 
         with col1:
             # Autocomplete-style spice selector
-            all_spices_list = sorted(df['Spice'].unique().tolist())
+            all_spices_list = sorted([s for s in df['Spice'].unique().tolist() if isinstance(s, str) and s.strip()])
             spice_sel = st.selectbox(
                 "🌶️ Select Spice:",
                 options=[''] + all_spices_list,
@@ -1584,7 +1640,7 @@ elif page == "🔎 Search & Explore":
 elif page == "🌶️ Spice Profile":
     st.markdown("## 🌶️ Spice Profile")
 
-    all_spices = sorted(df['Spice'].unique().tolist())
+    all_spices = sorted([s for s in df['Spice'].unique().tolist() if isinstance(s, str) and s.strip()])
     selected_spice = st.selectbox("Select a spice:", all_spices,
                                     index=all_spices.index('Turmeric') if 'Turmeric' in all_spices else 0)
 
@@ -1678,7 +1734,8 @@ elif page == "🌶️ Spice Profile":
 elif page == "🧬 Disease Profile":
     st.markdown("## 🧬 Disease Profile")
 
-    all_diseases = sorted(df['Disease'].unique().tolist())
+    # Only keep string values — protects sorted() from NaN/float
+    all_diseases = sorted([d for d in df['Disease'].unique().tolist() if isinstance(d, str) and d.strip()])
     default_idx = 0
     if 'cancer' in all_diseases:
         default_idx = all_diseases.index('cancer')
@@ -1775,7 +1832,7 @@ elif page == "⚖️ Compare":
     st.markdown("## ⚖️ Compare — Side-by-Side Spice Analysis")
     st.markdown("**Pick any two spices to see their profiles side-by-side.**")
 
-    all_spices = sorted(df['Spice'].unique().tolist())
+    all_spices = sorted([s for s in df['Spice'].unique().tolist() if isinstance(s, str) and s.strip()])
 
     def _stats_for(sub_df):
         """Compute standard stats for a filtered dataframe."""
@@ -2176,8 +2233,9 @@ elif page == "💬 AI Chat":
     # NL parser: extract intent + entities from user query
     def _parse_query(q, df):
         q_low = q.lower()
-        spice_list = df['Spice'].unique().tolist()
-        disease_list = df['Disease'].unique().tolist()
+        # Only keep string entries — protects .lower() from NaN/float
+        spice_list = [s for s in df['Spice'].unique().tolist() if isinstance(s, str) and s.strip()]
+        disease_list = [d for d in df['Disease'].unique().tolist() if isinstance(d, str) and d.strip()]
 
         found_spices = [s for s in spice_list if s.lower() in q_low]
         found_diseases = [d for d in disease_list if d.lower() in q_low]

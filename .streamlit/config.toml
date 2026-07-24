@@ -1,0 +1,17 @@
+# SpiceMagic — Streamlit configuration
+# Forces a stable base theme so mobile OS dark mode doesn't clash with
+# our custom in-app Light/Dark toggle.
+
+[theme]
+base = "light"
+primaryColor = "#2E75B6"
+backgroundColor = "#FFFFFF"
+secondaryBackgroundColor = "#F5F9FC"
+textColor = "#1E293B"
+font = "sans serif"
+
+[browser]
+gatherUsageStats = false
+
+[server]
+enableXsrfProtection = true
