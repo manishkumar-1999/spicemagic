@@ -1,0 +1,262 @@
+
+================================================================================
+         HOW PUBTATOR3 WORKS IN THE SPICEDISEASE PROJECT
+         (disease_ner.py  --  Full Pipeline Walkthrough)
+================================================================================
+
+
+  +--------------------------------------------------+
+  |           INPUT: pubmed_spice_results_clean.csv  |
+  |                                                  |
+  |   88,611 unique PMIDs (PubMed article IDs)       |
+  |   Loaded by: load_unique_pmids()                 |
+  |   Deduplicated with a Python set(), then sorted  |
+  +--------------------------------------------------+
+                          |
+                          |  88,611 PMIDs
+                          v
+  +--------------------------------------------------+
+  |              BATCHING  (BATCH_SIZE = 100)        |
+  |                                                  |
+  |   88,611 PMIDs  /  100 per request               |
+  |   = 887 total HTTP requests                      |
+  |                                                  |
+  |   Rate limit:  2.0 seconds between requests      |
+  |   Retry logic: up to 3 attempts per batch        |
+  |                (exponential back-off: 2s, 4s)    |
+  |   Cache save:  every 25 batches                  |
+  +--------------------------------------------------+
+                          |
+                          |  one batch at a time (100 PMIDs)
+                          v
+  +--------------------------------------------------+
+  |         CACHE CHECK  (disease_cache.json)        |
+  |                                                  |
+  |   Already fetched?  -->  skip this batch         |
+  |   Not yet cached?   -->  proceed to HTTP call    |
+  |                                                  |
+  |   Enables resume after interruption              |
+  +--------------------------------------------------+
+            |                       |
+     cached |                 not cached
+            |                       |
+            v                       v
+  +-------------------+   +---------------------------------+
+  |  Return cached    |   |       HTTP GET REQUEST          |
+  |  annotations      |   |                                 |
+  |  from JSON file   |   |  URL:                           |
+  +-------------------+   |  https://www.ncbi.nlm.nih.gov/ |
+            |             |  research/pubtator3-api/        |
+            |             |  publications/export/biocjson   |
+            |             |                                 |
+            |             |  Query param:                   |
+            |             |  ?pmids=38291011,38291012,...   |
+            |             |  (up to 100 IDs per call)       |
+            |             |                                 |
+            |             |  Header:                        |
+            |             |  User-Agent: SpiceDisease/1.0   |
+            |             |  Timeout: 60 seconds            |
+            |             +---------------------------------+
+            |                       |
+            |                       | HTTPS request sent to NCBI servers
+            |                       v
+            |          +---------------------------+
+            |          |   PUBTATOR3  (NCBI)       |
+            |          |                           |
+            |          |  Internally uses:         |
+            |          |  +---------------------+  |
+            |          |  |  TaggerOne ML Model |  |
+            |          |  |  (pre-trained on    |  |
+            |          |  |  biomedical papers) |  |
+            |          |  |                     |  |
+            |          |  |  Recognises:        |  |
+            |          |  |  - Disease names    |  |
+            |          |  |  - Gene/proteins    |  |
+            |          |  |  - Chemicals        |  |
+            |          |  |  - Species          |  |
+            |          |  |  - Mutations        |  |
+            |          |  +---------------------+  |
+            |          |                           |
+            |          |  Maps entities to:        |
+            |          |  - MeSH IDs  (Diseases)   |
+            |          |  - NCBI Gene IDs           |
+            |          |  - ChemIDplus IDs          |
+            |          +---------------------------+
+            |                       |
+            |                       | BioC JSON response
+            |                       v
+            |          +---------------------------+
+            |          |   BIOC JSON RESPONSE      |
+            |          |                           |
+            |          |  {                        |
+            |          |    "PubTator3": [          |
+            |          |      {                    |
+            |          |        "pmid": "38291011",|
+            |          |        "passages": [      |
+            |          |          {                |
+            |          |            "infons": {    |
+            |          |              "type":      |
+            |          |              "title"      |  <-- or "abstract"
+            |          |            },             |
+            |          |            "annotations": |
+            |          |            [              |
+            |          |              {            |
+            |          |                "infons":{ |
+            |          |                  "type":  |
+            |          |                  "Disease"|
+            |          |                },         |
+            |          |                "text":    |
+            |          |                "diabetes",|
+            |          |                "locations"|
+            |          |                :[{        |
+            |          |                  "offset":|
+            |          |                   42,     |
+            |          |                  "length":|
+            |          |                   8       |
+            |          |                }]         |
+            |          |              }            |
+            |          |            ]              |
+            |          |          }                |
+            |          |        ]                  |
+            |          |      }                    |
+            |          |    ]                      |
+            |          |  }                        |
+            |          +---------------------------+
+            |                       |
+            |                       | parse_disease_annotations(data)
+            |                       v
+            |          +---------------------------+
+            |          |   PARSING / FILTERING     |
+            |          |                           |
+            |          |  For every document:      |
+            |          |    For every passage:     |
+            |          |      For every annotation:|
+            |          |        IF type == "Disease|
+            |          |          extract:         |
+            |          |          - disease text   |
+            |          |          - mesh_id        |
+            |          |            (identifier)   |
+            |          |          - location       |
+            |          |            (title /       |
+            |          |             abstract)     |
+            |          |          - offset         |
+            |          |          - length         |
+            |          |        ELSE skip          |
+            |          |  (genes, chemicals, etc.  |
+            |          |   are discarded)          |
+            |          +---------------------------+
+            |                       |
+            +----------+            | structured annotation dicts
+                       |            |
+                       v            v
+                  +---------------------------------+
+                  |   MERGE  +  DEDUPLICATION      |
+                  |                                 |
+                  |  All batches merged into one    |
+                  |  master dict: { pmid -> [...] } |
+                  |                                 |
+                  |  Duplicate removal:             |
+                  |  same (pmid, disease, mesh_id,  |
+                  |  location) -> keep only one     |
+                  +---------------------------------+
+                                   |
+                   +---------------+---------------+
+                   |                               |
+                   v                               v
+  +-----------------------------+   +-----------------------------+
+  |  CACHE SAVE                 |   |  CSV OUTPUT                 |
+  |                             |   |                             |
+  |  disease_cache.json         |   |  disease_annotations.csv    |
+  |                             |   |                             |
+  |  Full JSON dump of all      |   |  Columns:                   |
+  |  annotations keyed by PMID  |   |  - pubmed_id                |
+  |                             |   |  - disease                  |
+  |  Saved every 25 batches     |   |  - mesh_id                  |
+  |  AND at final completion    |   |  - disease_location         |
+  |                             |   |    (title / abstract)       |
+  |  Allows resuming a run      |   |  - offset                   |
+  |  without re-fetching        |   |  - length                   |
+  +-----------------------------+   +-----------------------------+
+
+
+================================================================================
+                      ANNOTATION RECORD STRUCTURE
+================================================================================
+
+  One row in disease_annotations.csv looks like this:
+
+  +------------+-----------+------------+------------------+--------+--------+
+  | pubmed_id  | disease   | mesh_id    | disease_location | offset | length |
+  +------------+-----------+------------+------------------+--------+--------+
+  | 38291011   | diabetes  | D003920    | abstract         |  42    |   8    |
+  | 38291011   | obesity   | D009765    | abstract         | 198    |   7    |
+  | 38291012   | cancer    | D009369    | title            |   5    |   6    |
+  +------------+-----------+------------+------------------+--------+--------+
+
+  offset  = character position from the start of the passage (title or abstract)
+  length  = number of characters in the disease mention
+  mesh_id = MeSH controlled vocabulary ID (e.g. D003920 = Diabetes Mellitus)
+
+
+================================================================================
+                        KEY CONFIGURATION VALUES
+================================================================================
+
+  Constant           Value     Purpose
+  -----------------  --------  -------------------------------------------------
+  BATCH_SIZE         100       PMIDs sent per HTTP request
+  RATE_LIMIT_DELAY   2.0 s     Pause between requests (~30 req/min ceiling)
+  MAX_RETRIES        3         Retry attempts per failed request
+  SAVE_INTERVAL      25        Save cache to disk every N batches
+  HTTP timeout       60 s      Max wait per request before error
+
+  API endpoint:
+    https://www.ncbi.nlm.nih.gov/research/pubtator3-api/publications/export/biocjson
+
+
+================================================================================
+                           SUMMARY FLOW  (COMPACT)
+================================================================================
+
+
+  pubmed_spice_results_clean.csv
+           |
+           |  88,611 PMIDs
+           v
+  [ load_unique_pmids() ]
+           |
+           v
+  [ Split into batches of 100 ]
+           |
+           |---> Check disease_cache.json
+           |           |
+           |     cached |    not cached
+           |           |          |
+           |           |          v
+           |           |   HTTP GET  -->  PubTator3 API
+           |           |                  (TaggerOne ML)
+           |           |          |
+           |           |          v
+           |           |   BioC JSON response
+           |           |          |
+           |           |          v
+           |           |   parse_disease_annotations()
+           |           |   [ keep only type == "Disease" ]
+           |           |          |
+           |           +----------+
+           |                      |
+           v                      v
+  [ Merge all batches into master dict ]
+           |
+           +----------> disease_cache.json  (interim + final save)
+           |
+           v
+  [ write_disease_csv() ]
+  [ Deduplicate by (pmid, disease, mesh_id, location) ]
+           |
+           v
+  disease_annotations.csv
+  (pubmed_id | disease | mesh_id | disease_location | offset | length)
+
+
+================================================================================

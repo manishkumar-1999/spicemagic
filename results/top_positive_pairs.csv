@@ -1,0 +1,51 @@
+Spice_norm,Disease_norm,Count,Rank
+Turmeric,inflammatory,495,1
+Licorice,inflammatory,390,2
+Ginger,inflammatory,334,3
+Black Cumin,inflammatory,334,3
+Garlic,inflammatory,256,4
+Saffron,inflammatory,249,5
+Turmeric,cancer,231,6
+Pomegranate Seed,inflammatory,217,7
+Black Cumin,cancer,207,8
+Turmeric,inflammation,200,9
+Safflower,inflammatory,195,10
+Garlic,cancer,192,11
+Licorice,inflammation,179,12
+Angelica,inflammatory,178,13
+Moringa,inflammatory,177,14
+Ginger,inflammation,170,15
+Rosemary,inflammatory,166,16
+Fenugreek,diabetes,156,17
+Cassia,inflammatory,152,18
+Chamomile,inflammatory,142,19
+Clove,inflammatory,139,20
+Cinnamon,inflammatory,138,21
+Black Cumin,inflammation,136,22
+Perilla,inflammatory,135,23
+Ginger,cancer,134,24
+Thyme,inflammatory,134,24
+Fenugreek,diabetic,132,25
+Fenugreek,inflammatory,124,26
+Licorice,cancer,123,27
+Oregano,inflammatory,119,28
+Szechuan Lovage,inflammatory,119,28
+Garlic Scape,inflammatory,116,29
+Neem,inflammatory,115,30
+Black Pepper,inflammatory,113,31
+Saffron,inflammation,111,32
+Pomegranate Seed,cancer,110,33
+Safflower,inflammation,108,34
+Neem,cancer,103,35
+Amchur,inflammatory,102,36
+Garlic,inflammation,102,36
+Lavender,anxiety,101,37
+Turmeric,tumor,100,38
+Garlic Scape,cancer,99,39
+Barberry,inflammatory,97,40
+Black Cumin,toxicity,92,41
+Amla,inflammatory,91,42
+Angelica,inflammation,89,43
+Pomegranate Seed,inflammation,87,44
+Moringa,cancer,87,44
+Moringa,inflammation,87,44

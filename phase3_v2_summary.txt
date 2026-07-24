@@ -1,0 +1,16 @@
+=================================================================
+  PHASE 3 v2 — Re-Predicted 228k with 90% Model
+=================================================================
+
+Model: PubMedBERT Multi-Seed Ensemble (5 seeds)
+Training: 4,500 manual labels
+Model accuracy: 90.00%
+
+Total predicted: 228,750
+
+Label distribution:
+  positive: 122,119 (53.4%)
+  neutral: 84,756 (37.1%)
+  negative: 21,875 (9.6%)
+
+=================================================================

@@ -1,0 +1,51 @@
+Spice_norm,Disease_norm,Count,Rank
+Mugwort,allergy,116,1
+Mugwort,allergic,79,2
+Mugwort,pollinosis,65,3
+Celery,allergy,52,4
+Mugwort,asthma,45,5
+Celery,food allergy,41,6
+Mugwort,food allergy,40,7
+Mugwort,hypersensitivity,40,7
+Licorice,hypertension,38,8
+Licorice,hypokalemia,38,8
+Mugwort,allergic rhinitis,36,9
+Mustard,inflammation,35,10
+Mugwort,anaphylaxis,34,11
+Mugwort,urticaria,32,12
+Mustard,toxicity,31,13
+Mugwort,oral allergy syndrome,30,14
+Watercress,fascioliasis,29,15
+Mustard,inflammatory,28,16
+Myrtle,myrtle rust,28,16
+Mugwort,allergic reactions,28,16
+Celery,allergic,28,16
+Celery,allergic reactions,27,17
+Mugwort,rhinitis,27,17
+Celery,anaphylaxis,27,17
+Onion,infection,26,18
+Watercress,infection,24,19
+Mugwort,pollen allergy,22,20
+Mugwort,allergies,22,20
+Mugwort,allergic symptoms,21,21
+Mugwort,Allergy,21,21
+Watercress,Fascioliasis,21,21
+Mugwort,AR,20,22
+Celery,urticaria,20,22
+Celery,oral allergy syndrome,20,22
+Leek,infection,19,23
+Licorice,pseudohyperaldosteronism,19,23
+Mugwort,hay fever,19,23
+Celery,hypersensitivity,18,24
+Watercress,eosinophilia,18,24
+Onion,genotoxicity,18,24
+Onion,cytotoxic,18,24
+Barberry,stripe rust,18,24
+Onion,toxicity,18,24
+Licorice,pseudoaldosteronism,17,25
+Watercress,fever,17,25
+Licorice,toxicity,16,26
+Wild Garlic,poisoning,16,26
+Licorice,metabolic alkalosis,16,26
+Barberry,tritici,16,26
+Barberry,stem rust,16,26

@@ -1,0 +1,67 @@
+# =============================================================
+# .gitignore — SpiceMagic GitHub Deployment
+# =============================================================
+
+# ----- Model weights (>100MB, exceeds GitHub hard limit) -----
+*.pt
+*.pth
+pubmedbert_final.pt
+
+# ----- Runtime caches (regenerable, JSON) -----
+articles_cache.json
+biobert_cache.json
+disease_cache.json
+mesh_category_cache.json
+pmids_cache.json
+annotate_meaning_cache.json
+
+# ----- Backup files -----
+*_BACKUP*
+*_BEFORE_*
+*_FULL_BACKUP*
+spicerx_app_BEFORE_*.py
+
+# ----- Python -----
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+build/
+dist/
+
+# ----- Excel lock files -----
+~$*.xlsx
+~$*.xls
+
+# ----- Jupyter checkpoints -----
+.ipynb_checkpoints/
+
+# ----- IDE / editor -----
+.vscode/
+.idea/
+*.swp
+*.swo
+*.sublime-project
+*.sublime-workspace
+
+# ----- OS files -----
+Thumbs.db
+.DS_Store
+Desktop.ini
+
+# ----- Virtual environments -----
+.env
+venv/
+env/
+.venv/
+ENV/
+
+# ----- Streamlit secrets -----
+.streamlit/secrets.toml
+
+# ----- Local logs / temp -----
+*.log
+*.tmp
+tmp/

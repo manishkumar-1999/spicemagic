@@ -1,0 +1,51 @@
+Spice_norm,Disease_norm,Count,Rank
+Onion,toxicity,136,1
+Juniper Berry,asthma,98,2
+Mustard,toxicity,82,3
+Mace,MACE,80,4
+Garlic,toxicity,78,5
+Neem,toxicity,77,6
+Clove,toxicity,74,7
+Juniper Berry,Asthma,71,8
+Onion,genotoxicity,69,9
+Elderflower,cancer,69,9
+Fenugreek,diabetic,69,9
+Savory,obesity,68,10
+Thyme,toxicity,65,11
+Lemongrass,toxicity,65,11
+Horseradish,cancer,64,12
+Cassia,toxicity,62,13
+Turmeric,inflammatory,61,14
+Fenugreek,toxicity,61,14
+Black Cumin,inflammatory,60,15
+Chicory,chicory,60,15
+Fenugreek,diabetes,59,16
+Peppermint,irritable bowel syndrome,59,16
+Moringa,toxicity,57,17
+Rosemary,toxicity,57,17
+Lavender,anxiety,56,18
+Oregano,toxicity,55,19
+Ginger,toxicity,55,19
+Black Cumin,toxicity,54,20
+Garlic Scape,toxicity,52,21
+Cinnamon,toxicity,50,22
+Basil,toxicity,50,22
+Onion,cytotoxicity,50,22
+Ramp,COVID-19,50,22
+Turmeric,toxicity,49,23
+Mugwort,asthma,49,23
+Garlic,cancer,48,24
+Mace,stroke,47,25
+Mustard,cancer,46,26
+Peppermint,toxicity,46,26
+Garlic,COVID-19,45,27
+Garlic,diabetes,44,28
+Horseradish,tumor,44,28
+Fennel,toxicity,43,29
+Safflower,inflammatory,43,29
+Ramp,ramp lesions,43,29
+Garlic,inflammatory,42,30
+Peppermint,IBS,42,30
+Moringa,inflammatory,42,30
+Hibiscus,toxicity,41,31
+Onion,cancer,41,31
