@@ -1,0 +1,3 @@
+pmid,old_tier,new_tier,reason
+20618832,2,3,Crossover physiology experiment in 10 healthy subjects with no randomization stated -> non-randomized human (tier 3) not RCT
+27980595,4,5,Paper explicitly describes 'in vitro schistosomicidal activity' at 200 ug/mL -> in-vitro assay (tier 5) not animal

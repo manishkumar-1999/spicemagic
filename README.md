@@ -192,6 +192,30 @@ Spicemagic/
 - `phase4_analysis.py` → `results/insights.xlsx` (9 sheets)
 - `phase5_visualizations.py` → 11 publication-quality PNG charts
 
+### 8. Evidence grading — EvidenceRx (`evidencerx/`)
+The classifier above says *whether* an association is beneficial. It does not
+say whether the claim rests on a randomised trial or a petri dish. EvidenceRx
+grades every paper by study design and recomputes the headline numbers.
+
+| | % of associations reported beneficial |
+|---|---|
+| All on-topic evidence | 63.1% |
+| Animal + lab only | 74.9% |
+| **Human evidence only** | **28.2%** |
+
+A second PubMedBERT model assigns one of seven evidence tiers (off-topic,
+synthesis, RCT, human-observational, animal, in-vitro, review) at **86.4%
+accuracy** (95% CI ±5.5 pp) on a frozen 147-paper human-labelled test set.
+Inter-annotator agreement κ = 0.903; a 45-pair manual audit found 0/45 tier
+errors and 76% of pairs usable as reported.
+
+The beneficial-spice ranking reorders completely: **8 of the raw top-15 drop
+out** once human evidence is required — they are famous only from cell culture.
+
+See [`evidencerx/README.md`](evidencerx/README.md) for the tier scheme, the
+ablation (weak supervision helped at 706 gold labels and *hurt* at 1,045), the
+reproduction order, and the stated limitations.
+
 ---
 
 ## 📥 Large Files Not Included
@@ -201,9 +225,13 @@ To stay within GitHub's 100MB per-file hard limit, one file is excluded:
 | File | Size | How to obtain |
 |------|------|---------------|
 | `pubmedbert_final.pt` | 418 MB | Retrain by running `notebooks/MultiSeed_Ensemble_Colab.ipynb` on Colab (free T4 GPU, ~45 min) |
+| `final_database_v3.csv` | 93 MB | Run `evidencerx/scripts/evidence_build_v3.py` |
+| `e3_predict.csv`, `e3_weak.csv` | 170 MB | Run `evidencerx/scripts/evidence_prep_e3_data.py` |
 
-**The web app does NOT need `pubmedbert_final.pt` to run** — it reads
-predictions from `final_database_v2.csv` directly.
+**The web app does NOT need any of these to run.** It reads predictions from
+`final_database_v2.csv`, and merges evidence tiers from `evidence_tiers.csv` —
+a 1.3 MB PubMed-ID → tier lookup that carries the same information as the 93 MB
+tiered database at 1.4% of the size.
 
 ---
 
@@ -261,4 +289,3 @@ Supervised by **Prof. Ganesh Bagler**
 This work is licensed under **Creative Commons Attribution-NonCommercial-ShareAlike 3.0 Unported (CC BY-NC-SA 3.0)** — free for academic and non-commercial use with attribution.
 
 ---
-

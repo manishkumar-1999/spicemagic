@@ -1,0 +1,13 @@
+check,bucket,n,bad,err_pct,ci_lo,ci_hi
+disease_ok,ALL,45,5,11.1,4.8,23.5
+disease_ok,A_hype,15,0,0.0,0.0,20.4
+disease_ok,B_contested,15,2,13.3,3.7,37.9
+disease_ok,C_random,15,3,20.0,7.0,45.2
+tier_ok,ALL,45,0,0.0,0.0,7.9
+tier_ok,A_hype,15,0,0.0,0.0,20.4
+tier_ok,B_contested,15,0,0.0,0.0,20.4
+tier_ok,C_random,15,0,0.0,0.0,20.4
+direction_ok,ALL,45,6,13.3,6.3,26.2
+direction_ok,A_hype,15,4,26.7,10.9,52.0
+direction_ok,B_contested,15,2,13.3,3.7,37.9
+direction_ok,C_random,15,0,0.0,0.0,20.4

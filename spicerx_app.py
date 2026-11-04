@@ -625,56 +625,6 @@ def get_theme_css(theme='Light'):
                 background: linear-gradient(180deg, #2E75B6 0%, #1F4E79 100%);
                 opacity: 0.5;
             }
-            /* Force dark text in sidebar for light mode — protects against
-               mobile OS dark mode overriding text colors */
-            [data-testid="stSidebar"] h1,
-            [data-testid="stSidebar"] h2,
-            [data-testid="stSidebar"] h3,
-            [data-testid="stSidebar"] h4,
-            [data-testid="stSidebar"] h5,
-            [data-testid="stSidebar"] h6 {
-                color: #1E293B !important;
-            }
-            [data-testid="stSidebar"] p,
-            [data-testid="stSidebar"] label,
-            [data-testid="stSidebar"] span,
-            [data-testid="stSidebar"] div[data-testid="stMarkdownContainer"],
-            [data-testid="stSidebar"] div[data-testid="stMarkdownContainer"] *,
-            [data-testid="stSidebar"] .stRadio label,
-            [data-testid="stSidebar"] .stRadio div[role="radiogroup"] label,
-            [data-testid="stSidebar"] .stRadio div[role="radiogroup"] label p,
-            [data-testid="stSidebar"] .stRadio div[role="radiogroup"] label span {
-                color: #1E293B !important;
-            }
-            [data-testid="stSidebar"] [data-testid="stMetricLabel"] {
-                color: #475569 !important;
-            }
-            [data-testid="stSidebar"] [data-testid="stMetricValue"] {
-                color: #1F4E79 !important;
-            }
-            /* Force main content background/text in light mode too */
-            .stApp,
-            [data-testid="stAppViewContainer"],
-            [data-testid="stMain"] {
-                background-color: #FFFFFF !important;
-                color: #1E293B !important;
-            }
-            .stApp h1, .stApp h2, .stApp h3, .stApp h4, .stApp h5, .stApp h6,
-            [data-testid="stMarkdownContainer"] h1,
-            [data-testid="stMarkdownContainer"] h2,
-            [data-testid="stMarkdownContainer"] h3,
-            [data-testid="stMarkdownContainer"] h4,
-            [data-testid="stMarkdownContainer"] h5,
-            [data-testid="stMarkdownContainer"] h6 {
-                color: #1E293B !important;
-            }
-            [data-testid="stMarkdownContainer"],
-            [data-testid="stMarkdownContainer"] p,
-            [data-testid="stMarkdownContainer"] li,
-            [data-testid="stMarkdownContainer"] span,
-            .stMarkdown p, .stMarkdown li {
-                color: #334155 !important;
-            }
             #MainMenu {visibility: hidden;}
             footer {visibility: hidden;}
             /* Hide only specific header items — keep sidebar toggle visible */
@@ -702,16 +652,69 @@ def load_database():
             df['label'] = df['Association Nature'].astype(str).str.strip().str.lower()
             df['Spice'] = df['Spice'].astype(str).str.strip()
             df['Disease'] = df['Disease'].astype(str).str.strip()
-            # Drop rows where Spice/Disease became empty string or the literal 'nan'
-            # after conversion — protects downstream sorted() and .lower() calls
-            df = df[
-                df['Spice'].notna() & (df['Spice'] != '') & (df['Spice'].str.lower() != 'nan') &
-                df['Disease'].notna() & (df['Disease'] != '') & (df['Disease'].str.lower() != 'nan')
-            ].reset_index(drop=True)
             if 'Publication Date' in df.columns:
                 df['Year'] = pd.to_datetime(df['Publication Date'], errors='coerce').dt.year
+            df = attach_evidence_tiers(df)
             return df
     return None
+
+
+# ----------------------------------------------------------
+# EvidenceRx: evidence tier per paper.
+# Merged from a 1.3 MB PubMed-ID lookup rather than shipping the
+# 93 MB tiered database -- the tier is a property of the PAPER, so a
+# pmid -> tier map carries the same information at 1.4% of the size.
+# ----------------------------------------------------------
+TIER_LABEL = {0: 'Off-topic', 1: 'Meta-analysis / systematic review',
+              2: 'Randomised controlled trial', 3: 'Human observational',
+              4: 'Animal study', 5: 'Lab / in-vitro', 6: 'Review / in-silico'}
+TIER_SHORT = {0: 'Off-topic', 1: 'Synthesis', 2: 'RCT', 3: 'Human obs.',
+              4: 'Animal', 5: 'In-vitro', 6: 'Review'}
+TIER_COLOR = {0: '#95A5A6', 1: '#1A7A3A', 2: '#4CAF50', 3: '#A5D66A',
+              4: '#F4A13C', 5: '#E0673A', 6: '#B0B0B0'}
+HUMAN_TIERS = [1, 2, 3]
+
+
+def attach_evidence_tiers(df):
+    """Add evidence_tier / tier_class to the association table."""
+    if not os.path.exists('evidence_tiers.csv') or 'PubMed ID' not in df.columns:
+        df['evidence_tier'] = pd.NA
+        df['tier_class'] = 'unknown'
+        return df
+    tiers = pd.read_csv('evidence_tiers.csv', dtype={'pmid': str})
+    key = (pd.to_numeric(df['PubMed ID'], errors='coerce')
+           .astype('Int64').astype(str))
+    tmap = dict(zip(tiers['pmid'], tiers['evidence_tier']))
+    df['evidence_tier'] = key.map(tmap).astype('Int64')
+    df['tier_class'] = df['evidence_tier'].map(TIER_SHORT).fillna('unknown')
+    return df
+
+
+def tier_badge(tier):
+    """Small coloured pill naming the strength of the evidence."""
+    if pd.isna(tier):
+        return ''
+    t = int(tier)
+    return (f'<span style="background:{TIER_COLOR[t]};color:#fff;'
+            f'padding:2px 8px;border-radius:10px;font-size:0.72rem;'
+            f'font-weight:600;white-space:nowrap;">{TIER_SHORT[t]}</span>')
+
+
+def apply_evidence_filter(data, mode, custom=None):
+    """Filter a frame by the sidebar evidence selection."""
+    if 'evidence_tier' not in data.columns:
+        return data
+    if mode == 'All evidence (including off-topic)':
+        return data
+    # .copy() throughout: later pages assign new columns onto this frame,
+    # and a bare boolean-mask slice triggers SettingWithCopyWarning
+    if mode == 'Human evidence only':
+        return data[data['evidence_tier'].isin(HUMAN_TIERS)].copy()
+    if mode == 'Choose tiers...' and custom:
+        keep = [t for t, name in TIER_SHORT.items() if name in custom]
+        return data[data['evidence_tier'].isin(keep)].copy()
+    # default: drop off-topic noise only
+    return data[data['evidence_tier'] != 0].copy()
 
 # ==========================================================
 # Load Model (Cached) - for live prediction
@@ -1102,7 +1105,7 @@ if theme_choice != st.session_state.theme:
 
 st.sidebar.markdown("---")
 
-PAGES = ["📊 Dashboard", "🧠 Live Prediction", "🔎 Search & Explore",
+PAGES = ["🔎 Search & Explore", "📊 Dashboard", "🧠 Live Prediction",
          "🌶️ Spice Profile", "🧬 Disease Profile", "⚖️ Compare",
          "🌊 Sankey Flow", "📈 Analytics", "💬 AI Chat",
          "✉️ Contact", "💡 About"]
@@ -1134,6 +1137,63 @@ if len(st.session_state.nav_history) > 1:
         st.session_state.nav_history.pop()
         st.session_state.page_radio = st.session_state.nav_history[-1]
     st.sidebar.button("← Back to previous", on_click=_go_back, use_container_width=True)
+
+# ==========================================================
+# EvidenceRx filter -- applies to every page below.
+# Deliberately placed BEFORE Database Stats so the sidebar counts
+# describe what the user is actually looking at.
+# ==========================================================
+if 'evidence_tier' in df.columns and df['evidence_tier'].notna().any():
+    st.sidebar.markdown("---")
+    st.sidebar.markdown("### 🧪 Evidence level")
+    evidence_mode = st.sidebar.radio(
+        "Show associations from",
+        ["On-topic evidence (default)", "Human evidence only",
+         "All evidence (including off-topic)", "Choose tiers..."],
+        index=0, label_visibility="collapsed",
+        help="Every paper is graded 1-6 by evidence strength, or 0 if it is "
+             "not about a spice health effect at all. 'Human evidence only' "
+             "keeps meta-analyses, randomised trials and human observational "
+             "studies, and drops animal and lab work.")
+    custom_tiers = None
+    if evidence_mode == "Choose tiers...":
+        custom_tiers = st.sidebar.multiselect(
+            "Tiers to include",
+            [TIER_SHORT[t] for t in range(1, 7)],
+            default=[TIER_SHORT[t] for t in range(1, 7)])
+
+    # Summarise the WHOLE database before filtering. The Dashboard's
+    # evidence panel compares tiers against each other, so it must not read
+    # the filtered frame -- doing so made "all evidence" mean "whatever
+    # survived the filter" and produced nan when a tier was filtered away.
+    # Stored as plain numbers (not a frame copy) to keep memory flat.
+    def _pct(sub):
+        return ((sub['label'] == 'positive').mean() * 100) if len(sub) else None
+
+    EVIDENCE_SUMMARY = {
+        'all_pct': _pct(df[df['evidence_tier'].between(1, 6)]),
+        'all_n': int(df['evidence_tier'].between(1, 6).sum()),
+        'hum_pct': _pct(df[df['evidence_tier'].isin(HUMAN_TIERS)]),
+        'hum_n': int(df['evidence_tier'].isin(HUMAN_TIERS).sum()),
+        'pre_pct': _pct(df[df['evidence_tier'].isin([4, 5])]),
+        'pre_n': int(df['evidence_tier'].isin([4, 5]).sum()),
+        'mix': df[df['evidence_tier'].between(1, 6)]
+               .groupby('evidence_tier').size().sort_index(),
+    }
+
+    _before = len(df)
+    df = apply_evidence_filter(df, evidence_mode, custom_tiers)
+    _kept = len(df)
+    st.sidebar.caption(
+        f"**{_kept:,}** of {_before:,} associations "
+        f"({100*_kept/max(_before,1):.0f}%)")
+    if evidence_mode == "Human evidence only":
+        st.sidebar.info(
+            "Showing only human evidence. Figures will be markedly less "
+            "positive than the raw literature - that is the point.")
+    if _kept == 0:
+        st.sidebar.error("No associations match. Widen the selection.")
+        st.stop()
 
 st.sidebar.markdown("---")
 st.sidebar.markdown("### 💾 Database Stats")
@@ -1185,7 +1245,7 @@ if page == "🧠 Live Prediction":
 
         with col1:
             # Autocomplete-style spice selector
-            all_spices_list = sorted([s for s in df['Spice'].unique().tolist() if isinstance(s, str) and s.strip()])
+            all_spices_list = sorted(df['Spice'].unique().tolist())
             spice_sel = st.selectbox(
                 "🌶️ Select Spice:",
                 options=[''] + all_spices_list,
@@ -1383,6 +1443,58 @@ if page == "🧠 Live Prediction":
 elif page == "📊 Dashboard":
     st.markdown("## 📊 Database Overview")
 
+    # ---- EvidenceRx: how the headline claim changes with evidence grade ----
+    # Always computed over the FULL database, never the sidebar-filtered
+    # frame -- this panel's whole job is to compare the tiers.
+    _ev = globals().get('EVIDENCE_SUMMARY')
+    if _ev and _ev['all_n']:
+        _raw, _hum_pct, _pre_pct = _ev['all_pct'], _ev['hum_pct'], _ev['pre_pct']
+
+        def _fmt(pct):
+            return f"{pct:.1f}% positive" if pct is not None else "no data"
+
+        def _delta(pct):
+            return f"{pct-_raw:+.1f} pp vs all" if pct is not None else None
+
+        st.markdown("### 🧪 How much of this is human evidence?")
+        e1, e2, e3 = st.columns(3)
+        e1.metric("All on-topic evidence", _fmt(_raw),
+                  help=f"{_ev['all_n']:,} associations across every tier.")
+        e2.metric("Animal + lab only", _fmt(_pre_pct), _delta(_pre_pct),
+                  delta_color="off",
+                  help=f"{_ev['pre_n']:,} preclinical associations.")
+        e3.metric("Human evidence only", _fmt(_hum_pct), _delta(_hum_pct),
+                  delta_color="off",
+                  help=f"{_ev['hum_n']:,} associations from meta-analyses, "
+                       f"randomised trials and human observational studies.")
+        st.caption(
+            "Preclinical studies report benefit far more often than human "
+            "studies do. A raw count of the literature averages the two "
+            "together; grading the evidence separates them. "
+            "**These three figures cover the whole database and do not "
+            "change with the sidebar filter.**"
+        )
+
+        _comp = _ev['mix']
+        if len(_comp):
+            fig_t = go.Figure()
+            for t, cnt in _comp.items():
+                fig_t.add_trace(go.Bar(
+                    y=['Evidence mix'], x=[cnt], orientation='h',
+                    name=f"{TIER_SHORT[int(t)]}",
+                    marker_color=TIER_COLOR[int(t)],
+                    hovertemplate=f"<b>{TIER_LABEL[int(t)]}</b><br>"
+                                  f"%{{x:,}} associations<extra></extra>"))
+            fig_t.update_layout(
+                barmode='stack', height=150, showlegend=True,
+                margin=dict(l=10, r=10, t=10, b=10),
+                xaxis_title="associations", yaxis_title=None,
+                legend=dict(orientation='h', y=-0.45),
+                paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+                font=dict(color='#E8E8E8' if st.session_state.theme == 'dark' else '#2C3E50'))
+            st.plotly_chart(fig_t, use_container_width=True)
+        st.markdown("---")
+
     col1, col2, col3, col4 = st.columns(4)
 
     with col1:
@@ -1517,30 +1629,59 @@ elif page == "🔎 Search & Explore":
                 [''] + _clean(_df['Disease']))
     _spice_options, _disease_options = _get_all_options(df)
 
-    col1, col2, col3, col4 = st.columns(4)
-    with col1:
-        spice_filter = st.selectbox(
-            "🌶️ Spice (autocomplete)",
-            options=_spice_options,
-            index=0,
-            help="Start typing to filter — pick a specific spice or leave blank for all",
-        )
-    with col2:
-        disease_filter = st.selectbox(
-            "🧬 Disease (autocomplete)",
-            options=_disease_options,
-            index=0,
-            help="Start typing to filter — pick a specific disease or leave blank for all",
-        )
-    with col3:
+    # --- search box: pick ONE field, type a term, press Search ---
+    if 'search_submitted' not in st.session_state:
+        st.session_state.search_submitted = False
+        st.session_state.search_field = 'Spice'
+        st.session_state.search_term = ''
+
+    sc1, sc2, sc3 = st.columns([1.1, 2.6, 0.9])
+    with sc1:
+        search_field = st.radio(
+            "Search by", ["🌶️ Spice", "🧬 Disease"],
+            horizontal=False,
+            help="Choose which column to search, then pick a value.")
+    _field = 'Spice' if 'Spice' in search_field else 'Disease'
+    with sc2:
+        _opts = _spice_options if _field == 'Spice' else _disease_options
+        term = st.selectbox(
+            f"{'🌶️' if _field == 'Spice' else '🧬'} {_field} (type to filter)",
+            options=_opts, index=0,
+            help="Start typing to narrow the list. Leave blank to search all.")
+    with sc3:
+        st.markdown("<div style='height:1.85rem'></div>", unsafe_allow_html=True)
+        if st.button("🔍 Search", type="primary", use_container_width=True):
+            st.session_state.search_submitted = True
+            st.session_state.search_field = _field
+            st.session_state.search_term = term
+        if st.button("Reset", use_container_width=True):
+            st.session_state.search_submitted = False
+            st.session_state.search_term = ''
+
+    fc1, fc2 = st.columns([2, 2])
+    with fc1:
         sentiment_filter = st.multiselect(
             "😊 Sentiment", options=['positive', 'negative', 'neutral'],
-            default=['positive', 'negative', 'neutral'])
-    with col4:
+            default=['positive', 'negative', 'neutral'],
+            help="Leave all three selected to see everything. Results are "
+                 "ordered positive, then negative, then neutral.")
+    with fc2:
         if 'max_confidence' in df.columns:
             conf_threshold = st.slider("🎯 Min Confidence", 0.75, 1.0, 0.85, 0.05)
         else:
             conf_threshold = 0.75
+
+    # Nothing is shown until the user actually searches -- rendering all
+    # 190k associations on page load is slow and tells the user nothing.
+    if not st.session_state.search_submitted:
+        st.info("Pick **Spice** or **Disease**, choose a value, then press "
+                "**🔍 Search**. Leave the box blank to browse everything.")
+        st.stop()
+
+    spice_filter = (st.session_state.search_term
+                    if st.session_state.search_field == 'Spice' else '')
+    disease_filter = (st.session_state.search_term
+                      if st.session_state.search_field == 'Disease' else '')
 
     # Timeline slider (year range) — only if Year column exists
     if 'Year' in df.columns and df['Year'].notna().any():
@@ -1575,11 +1716,11 @@ elif page == "🔎 Search & Explore":
     if len(filtered) > 0:
         col1, col2, col3 = st.columns(3)
         with col1:
-            st.metric("Positive", f"{(filtered['label']=='positive').sum():,}")
+            st.metric("🟢 Positive", f"{(filtered['label']=='positive').sum():,}")
         with col2:
-            st.metric("Neutral", f"{(filtered['label']=='neutral').sum():,}")
+            st.metric("🔴 Negative", f"{(filtered['label']=='negative').sum():,}")
         with col3:
-            st.metric("Negative", f"{(filtered['label']=='negative').sum():,}")
+            st.metric("🟡 Neutral", f"{(filtered['label']=='neutral').sum():,}")
 
         col1, col2 = st.columns([1, 3])
         with col1:
@@ -1587,15 +1728,26 @@ elif page == "🔎 Search & Explore":
         with col2:
             n_show = st.slider("Show top N results", 10, 200, 50, 10)
 
-        if sort_by == "Confidence" and 'max_confidence' in filtered.columns:
-            display = filtered.nlargest(n_show, 'max_confidence')
+        # Sentiment is always the PRIMARY ordering -- positive, then
+        # negative, then neutral -- so the findings that say something come
+        # before the ones that say nothing. The chosen sort breaks ties.
+        SENT_ORDER = ['positive', 'negative', 'neutral']
+        _f = filtered.copy()
+        _f['_sent_rank'] = pd.Categorical(_f['label'], categories=SENT_ORDER,
+                                          ordered=True)
+        if sort_by == "Confidence" and 'max_confidence' in _f.columns:
+            display = _f.sort_values(['_sent_rank', 'max_confidence'],
+                                     ascending=[True, False]).head(n_show)
         elif sort_by == "Spice":
-            display = filtered.sort_values('Spice').head(n_show)
+            display = _f.sort_values(['_sent_rank', 'Spice']).head(n_show)
         else:
-            display = filtered.sort_values('Disease').head(n_show)
+            display = _f.sort_values(['_sent_rank', 'Disease']).head(n_show)
+        display = display.drop(columns='_sent_rank')
 
         # Build display with PubMed ID + clickable link
         display_cols = display[['Spice', 'Disease', 'label']].copy()
+        if 'tier_class' in display.columns:
+            display_cols['Evidence'] = display['tier_class']
         if 'max_confidence' in display.columns:
             display_cols['Confidence'] = (display['max_confidence'] * 100).round(1).astype(str) + '%'
         if 'Info (English)' in display.columns:
@@ -1640,7 +1792,7 @@ elif page == "🔎 Search & Explore":
 elif page == "🌶️ Spice Profile":
     st.markdown("## 🌶️ Spice Profile")
 
-    all_spices = sorted([s for s in df['Spice'].unique().tolist() if isinstance(s, str) and s.strip()])
+    all_spices = sorted(df['Spice'].unique().tolist())
     selected_spice = st.selectbox("Select a spice:", all_spices,
                                     index=all_spices.index('Turmeric') if 'Turmeric' in all_spices else 0)
 
@@ -1734,8 +1886,7 @@ elif page == "🌶️ Spice Profile":
 elif page == "🧬 Disease Profile":
     st.markdown("## 🧬 Disease Profile")
 
-    # Only keep string values — protects sorted() from NaN/float
-    all_diseases = sorted([d for d in df['Disease'].unique().tolist() if isinstance(d, str) and d.strip()])
+    all_diseases = sorted(df['Disease'].unique().tolist())
     default_idx = 0
     if 'cancer' in all_diseases:
         default_idx = all_diseases.index('cancer')
@@ -1832,7 +1983,7 @@ elif page == "⚖️ Compare":
     st.markdown("## ⚖️ Compare — Side-by-Side Spice Analysis")
     st.markdown("**Pick any two spices to see their profiles side-by-side.**")
 
-    all_spices = sorted([s for s in df['Spice'].unique().tolist() if isinstance(s, str) and s.strip()])
+    all_spices = sorted(df['Spice'].unique().tolist())
 
     def _stats_for(sub_df):
         """Compute standard stats for a filtered dataframe."""
@@ -2233,9 +2384,8 @@ elif page == "💬 AI Chat":
     # NL parser: extract intent + entities from user query
     def _parse_query(q, df):
         q_low = q.lower()
-        # Only keep string entries — protects .lower() from NaN/float
-        spice_list = [s for s in df['Spice'].unique().tolist() if isinstance(s, str) and s.strip()]
-        disease_list = [d for d in df['Disease'].unique().tolist() if isinstance(d, str) and d.strip()]
+        spice_list = df['Spice'].unique().tolist()
+        disease_list = df['Disease'].unique().tolist()
 
         found_spices = [s for s in spice_list if s.lower() in q_low]
         found_diseases = [d for d in disease_list if d.lower() in q_low]
