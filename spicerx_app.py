@@ -652,6 +652,16 @@ def load_database():
             df['label'] = df['Association Nature'].astype(str).str.strip().str.lower()
             df['Spice'] = df['Spice'].astype(str).str.strip()
             df['Disease'] = df['Disease'].astype(str).str.strip()
+            # Drop rows with no real spice or disease. astype(str) above turns
+            # NaN into the literal string "nan", which then survives every
+            # downstream filter and blows up on .lower() in AI Chat and on
+            # sorted() in Disease Profile (float vs str comparison).
+            df = df[
+                df['Spice'].notna() & (df['Spice'] != '')
+                & (df['Spice'].str.lower() != 'nan')
+                & df['Disease'].notna() & (df['Disease'] != '')
+                & (df['Disease'].str.lower() != 'nan')
+            ].reset_index(drop=True)
             if 'Publication Date' in df.columns:
                 df['Year'] = pd.to_datetime(df['Publication Date'], errors='coerce').dt.year
             df = attach_evidence_tiers(df)
@@ -688,6 +698,18 @@ def attach_evidence_tiers(df):
     df['evidence_tier'] = key.map(tmap).astype('Int64')
     df['tier_class'] = df['evidence_tier'].map(TIER_SHORT).fillna('unknown')
     return df
+
+
+def unique_names(series):
+    """Sorted unique values of a Spice/Disease column, non-strings removed.
+
+    sorted() raises TypeError the moment a single NaN sits beside strings,
+    which is how one bad row in 228,750 took down two whole pages. The
+    load-time filter should make this redundant; it is kept so a future
+    data refresh cannot reintroduce the same crash.
+    """
+    return sorted(v for v in series.unique().tolist()
+                  if isinstance(v, str) and v.strip())
 
 
 def tier_badge(tier):
@@ -1245,7 +1267,7 @@ if page == "🧠 Live Prediction":
 
         with col1:
             # Autocomplete-style spice selector
-            all_spices_list = sorted(df['Spice'].unique().tolist())
+            all_spices_list = unique_names(df['Spice'])
             spice_sel = st.selectbox(
                 "🌶️ Select Spice:",
                 options=[''] + all_spices_list,
@@ -1792,7 +1814,7 @@ elif page == "🔎 Search & Explore":
 elif page == "🌶️ Spice Profile":
     st.markdown("## 🌶️ Spice Profile")
 
-    all_spices = sorted(df['Spice'].unique().tolist())
+    all_spices = unique_names(df['Spice'])
     selected_spice = st.selectbox("Select a spice:", all_spices,
                                     index=all_spices.index('Turmeric') if 'Turmeric' in all_spices else 0)
 
@@ -1886,7 +1908,7 @@ elif page == "🌶️ Spice Profile":
 elif page == "🧬 Disease Profile":
     st.markdown("## 🧬 Disease Profile")
 
-    all_diseases = sorted(df['Disease'].unique().tolist())
+    all_diseases = unique_names(df['Disease'])
     default_idx = 0
     if 'cancer' in all_diseases:
         default_idx = all_diseases.index('cancer')
@@ -1983,7 +2005,7 @@ elif page == "⚖️ Compare":
     st.markdown("## ⚖️ Compare — Side-by-Side Spice Analysis")
     st.markdown("**Pick any two spices to see their profiles side-by-side.**")
 
-    all_spices = sorted(df['Spice'].unique().tolist())
+    all_spices = unique_names(df['Spice'])
 
     def _stats_for(sub_df):
         """Compute standard stats for a filtered dataframe."""
@@ -2384,8 +2406,13 @@ elif page == "💬 AI Chat":
     # NL parser: extract intent + entities from user query
     def _parse_query(q, df):
         q_low = q.lower()
-        spice_list = df['Spice'].unique().tolist()
-        disease_list = df['Disease'].unique().tolist()
+        # isinstance guard as well as the load-time filter: this page is the
+        # one that crashes hardest on a stray non-string, and a future data
+        # refresh should not be able to take the chat page down.
+        spice_list = [s for s in df['Spice'].unique().tolist()
+                      if isinstance(s, str) and s.strip()]
+        disease_list = [d for d in df['Disease'].unique().tolist()
+                        if isinstance(d, str) and d.strip()]
 
         found_spices = [s for s in spice_list if s.lower() in q_low]
         found_diseases = [d for d in disease_list if d.lower() in q_low]
